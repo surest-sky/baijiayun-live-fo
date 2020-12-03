@@ -2,12 +2,13 @@ package request
 
 import (
 	"github.com/go-redis/redis"
+	"talk/config"
 	"talk/global"
 )
 
-func RedisClient()  {
+func RedisClient() {
 	client := redis.NewClient(&redis.Options{
-		Addr:     "49.235.4.137:6379",
+		Addr:     config.GetString("REDIS_HOST") + ":6379",
 		Password: "AdAd123AdAd",
 		DB:       5,
 	})

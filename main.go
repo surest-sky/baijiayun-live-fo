@@ -5,18 +5,20 @@ import (
 	"log"
 	"os"
 	"sort"
+	"talk/config"
 	"talk/global"
 	"talk/request"
 )
 
 func main() {
+	config.Initialize()
 	// 分发对应函数
 	app := &cli.App{
 		Commands: []*cli.Command{
 			{
-				Name:    "class",
-				Usage:   "爬一爬课程",
-				Action:  func(c *cli.Context) error {
+				Name:  "class",
+				Usage: "爬一爬课程",
+				Action: func(c *cli.Context) error {
 					request.RedisClient()
 					request.HandleClass()
 					defer global.REDIS_CLIENT.Close()

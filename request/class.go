@@ -12,14 +12,15 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"talk/config"
 	"talk/global"
 	"time"
 )
 
 type student struct {
-	Name string
-	Age string
-	No string
+	Name  string
+	Age   string
+	No    string
 	Level string
 }
 
@@ -37,10 +38,12 @@ type class struct {
 	First_Class      string
 	AssessClass      string
 	VipClass         string
-	Status			 string
+	Status           string
 }
 
-var filename = fmt.Sprintf("./excel/%s", time.Now().Format("2006-01-02"))
+var dir = config.GetString("EXCEL_DIR")
+var filename = fmt.Sprintf("%s/%s", dir, time.Now().Format("2006-01-02"))
+
 /** 初始化登录 */
 func initLogin() {
 	if s, _ := global.REDIS_CLIENT.Get(loginUrl).Result(); len(s) == 0 {
@@ -52,19 +55,22 @@ func initLogin() {
 		Login()
 	}
 }
+
 /** 处理课程，分发 */
 func HandleClass() {
+	panic(filename)
 	// 初始化登录
 	initLogin()
 
 	// 分发异步脚本
 	synClass()
 }
+
 /** 开始处理 */
-func synClass()  {
+func synClass() {
 	// 第一次跑html
 	var start_at = time.Now().Format("2006-01-02")
-	var end_at   = time.Now().Format("2006-01-02")
+	var end_at = time.Now().Format("2006-01-02")
 	s := dowloadClass(start_at, end_at, 1)
 
 	// 获取html
@@ -74,16 +80,16 @@ func synClass()  {
 	// 获取当前页有多少条，设置channel缓冲池
 	total := html.Find(".pt_10 .red").Text()
 	t, _ := strconv.ParseInt(total, 10, 32)
-	pageCount :=  int(math.Ceil(float64(t / 10)))
+	pageCount := int(math.Ceil(float64(t / 10)))
 	classChan := make(map[int]chan string, 50)
 	// 执行脚本
 	fmt.Println("开始执行脚本")
 
 	// 分发协程脚本去执行文件解析和下载
-	for i:=1; i<pageCount; i++ {
+	for i := 1; i < pageCount; i++ {
 		//filename := "./json/" + strconv.Itoa(i) + ".json"
 		classChan[i] = make(chan string)
-		go parseHtml(dowloadClass(start_at, end_at, i), i , classChan[i])
+		go parseHtml(dowloadClass(start_at, end_at, i), i, classChan[i])
 	}
 
 	// 消费channel数据，准备写入excel
@@ -91,7 +97,7 @@ func synClass()  {
 	var classes5 []map[string]string
 	var classes6 []map[string]string
 	var classes []map[string]string
-	for _, class := range classChan{
+	for _, class := range classChan {
 		var tempClass []map[string]string
 		msg := <-class
 		_ = json.Unmarshal([]byte(msg), &tempClass)
@@ -113,19 +119,19 @@ func synClass()  {
 	}
 
 	wg := sync.WaitGroup{}
-	defer wg.Done()
 	wg.Add(1)
-	go importExcel(classes4, filename + "-4.xls")
+	go importExcel(classes4, filename+"-4.xls", &wg)
 	wg.Add(1)
-	go importExcel(classes5, filename + "-5.xls")
+	go importExcel(classes5, filename+"-5.xls", &wg)
 	wg.Add(1)
-	go importExcel(classes6, filename + "-6.xls")
+	go importExcel(classes6, filename+"-6.xls", &wg)
 	wg.Add(1)
-	go importExcel(classes, filename + "-1.xls")
+	go importExcel(classes, filename+"-1.xls", &wg)
 	wg.Wait()
 
 	fmt.Println("success!")
 }
+
 /** 执行读取文件 */
 func dowloadClass(startDate string, endDate string, c int) string {
 	currentPage := strconv.Itoa(c)
@@ -166,13 +172,14 @@ func dowloadClass(startDate string, endDate string, c int) string {
 			html = ""
 		}
 		html := global.GetBodyString(response)
-		return html;
+		return html
 
 		global.REDIS_CLIENT.Set(classUrl, html, time.Minute*20)
 		return ""
 	}
 	return html
 }
+
 /** html 解析 */
 func parseHtml(s string, current int, classChan chan string) {
 	fmt.Println("current: " + strconv.Itoa(current))
@@ -181,7 +188,7 @@ func parseHtml(s string, current int, classChan chan string) {
 
 	row := make([]class, 0)
 	html.Find("#tableCourseList tr").Each(func(i int, node *goquery.Selection) {
-		isVip := "0";
+		isVip := "0"
 		if len(node.Find("td").Eq(0).Find("label").Text()) > 0 {
 			isVip = "1"
 		}
@@ -192,19 +199,19 @@ func parseHtml(s string, current int, classChan chan string) {
 		}
 
 		temp := class{
-			CLASS_ID: node.Find("td").Eq(0).Find("p").Text(),
-			Teahcher_Name: node.Find("td").Eq(1).Find("p").Text(),
-			VipClass: isVip,
-			Time: node.Find("td").Eq(2).Text(),
-			Tool: trim(node.Find("td").Eq(3).Text()),
-			Lesson_Plan: trim(node.Find("td").Eq(4).Text()),
-			Student: getStudent(node.Find("td").Eq(5)),
-			Feedback: "",
-			Org_Class: "",
+			CLASS_ID:         node.Find("td").Eq(0).Find("p").Text(),
+			Teahcher_Name:    node.Find("td").Eq(1).Find("p").Text(),
+			VipClass:         isVip,
+			Time:             node.Find("td").Eq(2).Text(),
+			Tool:             trim(node.Find("td").Eq(3).Text()),
+			Lesson_Plan:      trim(node.Find("td").Eq(4).Text()),
+			Student:          getStudent(node.Find("td").Eq(5)),
+			Feedback:         "",
+			Org_Class:        "",
 			Experience_Class: "",
-			First_Class: "",
-			AssessClass: "",
-			Status: getStatus(trim(node.Find("td").Eq(8).Find("p").Text())),
+			First_Class:      "",
+			AssessClass:      "",
+			Status:           getStatus(trim(node.Find("td").Eq(8).Find("p").Text())),
 		}
 		row = append(row, temp)
 	})
@@ -219,6 +226,7 @@ func parseHtml(s string, current int, classChan chan string) {
 
 	fmt.Println("解析完成>>>>>")
 }
+
 /** 自定义获取学生资料 */
 func getStudent(node *goquery.Selection) string {
 	student := student{
@@ -230,21 +238,23 @@ func getStudent(node *goquery.Selection) string {
 	s, _ := json.Marshal(student)
 	return string(s)
 }
+
 // 获取状态
 func getStatus(statusTest string) string {
 	if statusTest == "Absent with notice" {
-		return "6";
+		return "6"
 	}
 
 	if statusTest == "Absent without noitce" {
-		return "4";
+		return "4"
 	}
 
 	if statusTest == "Canceled" {
-		return "5";
+		return "5"
 	}
 	return "1"
 }
+
 /** 格式化一些乱七八糟的字符串 */
 func trim(text string) string {
 	text = strings.ReplaceAll(text, " ", "")
@@ -254,23 +264,27 @@ func trim(text string) string {
 	text = strings.TrimSpace(text)
 	return text
 }
+
 /** 导入excel */
-func importExcel(classes []map[string]string, filename string)  {
+func importExcel(classes []map[string]string, filename string, wg *sync.WaitGroup) {
 	// 读取excel
 	f := initExcel()
 	sheet := "Sheet1"
-	for index, class := range classes{
+	for index, class := range classes {
 		item := mapToSlice(class)
-		for k, v := range item  {
-			excelRow := global.IndexExcelRow(k) + strconv.Itoa(index + 2)
- 			f.SetCellValue(sheet, excelRow, v)
+		for k, v := range item {
+			excelRow := global.IndexExcelRow(k) + strconv.Itoa(index+2)
+			f.SetCellValue(sheet, excelRow, v)
 		}
 	}
 
 	if err := f.SaveAs(filename); err != nil {
 		fmt.Println(err)
 	}
+
+	wg.Done()
 }
+
 /** 初始化excel文件 */
 func initExcel() *excelize.File {
 	f := excelize.NewFile()
@@ -279,11 +293,12 @@ func initExcel() *excelize.File {
 	classHeader := [14]string{"Class ID", "Time", "Tool", "Teacher Name", "Lesson Plan", "Student", "Flowers", "Feedback", "Org Class", "Experience Class", "First Class", "Assess Class", "Vip Class", "Status"}
 	for k, v := range classHeader {
 		excelRow := global.IndexExcelRow(k)
-		f.SetCellValue(sheet, excelRow + "1", v)
+		f.SetCellValue(sheet, excelRow+"1", v)
 		f.SetColWidth(sheet, excelRow, excelRow, 20)
 	}
 	return f
 }
+
 /** map函数转slice */
 func mapToSlice(m map[string]string) []interface{} {
 	class := &class{
