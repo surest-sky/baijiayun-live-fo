@@ -58,7 +58,6 @@ func initLogin() {
 
 /** 处理课程，分发 */
 func HandleClass() {
-	panic(filename)
 	// 初始化登录
 	initLogin()
 
