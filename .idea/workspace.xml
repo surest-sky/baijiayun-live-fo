@@ -1,27 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="a981559f-c427-4946-bfde-c602f6e6e21c" name="Default Changelist" comment="更新">
+    <list default="true" id="a981559f-c427-4946-bfde-c602f6e6e21c" name="Default Changelist" comment="百家云处理版本">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config/config.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/excel/2020-11-30-1.xls" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/excel/2020-11-30-4.xls" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/excel/2020-11-30-5.xls" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/excel/2020-11-30-6.xls" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/gc.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/global/global.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/global/help.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/global/logger.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/json/1.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/json/2.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/main" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/request/class.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/request/helper.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/request/login.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/request/redis.go" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -74,7 +55,6 @@
   </component>
   <component name="PropertiesComponent">
     <property name="DefaultGoTemplateProperty" value="Go File" />
-    <property name="GO_FMT" value="true" />
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
@@ -121,7 +101,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="更新" />
-    <option name="LAST_COMMIT_MESSAGE" value="更新" />
+    <MESSAGE value="百家云处理版本" />
+    <option name="LAST_COMMIT_MESSAGE" value="百家云处理版本" />
   </component>
   <component name="VgoProject">
     <integration-enabled>true</integration-enabled>
