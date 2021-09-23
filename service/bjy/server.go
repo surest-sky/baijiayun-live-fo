@@ -1,4 +1,4 @@
-package service
+package bjy
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ type Client interface {
 	Receive()
 	ReceiveHandle(b []byte)
 	RegisterRHandle(f func(gjson.Result))
-	SetC(*websocket.Conn)
+	SetClient(host string, o_host string)
 }
 
 type HandleClient struct {
@@ -23,25 +23,22 @@ var (
 	err error
 )
 
-func GetHClient(ws_host string, origin_host string) (Client, error) {
-	client := &HandleClient{}
-
-	c, err := websocket.Dial(ws_host, "", origin_host)
-	client.SetC(c)
-	if err != nil {
-		return client, err
-	}
-
-	return client, nil
+func GetServer() Client {
+	return &HandleClient{}
 }
 
 // 发送帧数据
-func (c HandleClient) SetC(conn *websocket.Conn) {
-	c.C = conn
+func (c *HandleClient) SetClient(host string, o_host string) {
+	client, err := websocket.Dial(host, "", o_host)
+	if err != nil {
+		fmt.Println("Error :", err.Error())
+	}
+
+	c.C = client
 }
 
 // 设置服务器
-func (c HandleClient) Send(tframe string) error {
+func (c *HandleClient) Send(tframe string) error {
 	if _, err := c.C.Write([]byte(tframe)); err != nil {
 		return err
 	}
@@ -50,7 +47,7 @@ func (c HandleClient) Send(tframe string) error {
 }
 
 // 接受帧数据
-func (c HandleClient) Receive() {
+func (c *HandleClient) Receive() {
 	var msg = make([]byte, 5000)
 	var n int
 	if n, err = c.C.Read(msg); err != nil {
@@ -61,7 +58,7 @@ func (c HandleClient) Receive() {
 }
 
 // 接受消息处理器
-func (c HandleClient) ReceiveHandle(b []byte) {
+func (c *HandleClient) ReceiveHandle(b []byte) {
 	if len(b) == 0 {
 		fmt.Println("receive string empty")
 		return
@@ -74,6 +71,6 @@ func (c HandleClient) ReceiveHandle(b []byte) {
 }
 
 // 注册接受消息处理器
-func (c HandleClient) RegisterRHandle(f func(gjson.Result)) {
+func (c *HandleClient) RegisterRHandle(f func(gjson.Result)) {
 	c.Handler = append(c.Handler, f)
 }

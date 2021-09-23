@@ -1,4 +1,4 @@
-package service
+package bjy
 
 import (
 	"encoding/json"
@@ -20,58 +20,91 @@ type BjyH struct {
 		SdkAppid   string `json:"sdkAppid"`
 		Identifier string `json:"identifier"`
 		UserSig    string `json:"userSig"`
+		Tinyid     string `json:"tinyid"`
+		Version    string `json:"version"`
 	}
 }
 
 // 处理token
-func (t BjyH) ProcessToken(result gjson.Result) {
+func (t *BjyH) EventToken(result gjson.Result) {
 	token := result.Get("webrtc_info.token").String()
 	if len(token) > 0 {
 		t.Params.SdkAppid = result.Get("webrtc_info.appId").String()
 		t.Params.Identifier = result.Get("id").String()
 		t.Params.UserSig = token
-		fmt.Println("Token Successed ! \n Token: ", token)
+		fmt.Println("Token Successed ! \nToken: ", token)
 	}
 
 	fmt.Println("----- 我收到消息了 ------")
 }
 
 // 处理用户列表
-func (t BjyH) ProcessUserList(result gjson.Result) {
+func (t *BjyH) EventUserList(result gjson.Result) {
 	fmt.Println("----- 我收到消息了 ------")
 }
 
 // 获取待处理的函数
-func (t BjyH) getProcessF() []func(gjson.Result) {
+func (t *BjyH) getEventFs() []func(gjson.Result) {
 	return []func(gjson.Result){
-		t.ProcessToken,
-		t.ProcessUserList,
+		t.EventToken,
+		t.EventUserList,
 	}
 }
 
 // 设置req 客户端
 // example: "https://e83301793.at.baijiayun.com"
-func (t BjyH) SetReqClient() {
+func (t *BjyH) SetReqClient() {
 	var (
 		ws_host     = "wss://pro-signal.baijiayun.com/"
 		origin_host = t.RoomUrl
 	)
 
-	client, err := GetHClient(ws_host, origin_host)
+	server := GetServer()
+	server.SetClient(ws_host, origin_host)
 	if err != nil {
 		t.logger(err, "Req Connect : ")
 		return
 	}
 
-	t.ReqClient = client
-	var funcs = t.getProcessF()
+	t.ReqClient = server
+	var funcs = t.getEventFs()
 	for _, f := range funcs {
 		t.ReqClient.RegisterRHandle(f)
 	}
+
+	go func() {
+		t.ReqClient.Receive()
+	}()
+}
+
+// 设置 sdk 客户端
+// example: "https://e83301793.at.baijiayun.com"
+func (t *BjyH) SetSdkClient() {
+	var (
+		ws_host     = "wss://qcloud.rtc.qq.com"
+		origin_host = t.RoomUrl
+	)
+
+	server := GetServer()
+	server.SetClient(ws_host, origin_host)
+	if err != nil {
+		t.logger(err, "Req Connect : ")
+		return
+	}
+
+	t.AuthClient = server
+	var funcs = t.getEventFs()
+	for _, f := range funcs {
+		t.AuthClient.RegisterRHandle(f)
+	}
+
+	go func() {
+		t.AuthClient.Receive()
+	}()
 }
 
 // 设置 Token
-func (t BjyH) SetToken() {
+func (t *BjyH) MessageToken() {
 	str := map[string]interface{}{
 		"message_type":      "server_info_req",
 		"class_id":          t.Classid,
@@ -117,8 +150,26 @@ func (t BjyH) SetToken() {
 	}
 }
 
+// 获取用户列表
+func (t *BjyH) MessageUserList() {
+	var um = map[string]interface{}{
+		"tag_key": "on_get_user_list",
+		"data":    "",
+		"openid":  t.Params.SdkAppid,
+		"tinyid":  t.Params.Tinyid,
+		"version": t.Params.Version,
+		"ua":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36 Edg/93.0.961.52",
+	}
+	s, _ := json.Marshal(um)
+	r := string(s)
+	if err := t.AuthClient.Send(r); err != nil {
+		t.logger(err)
+		return
+	}
+}
+
 // 从 Html 中获取 data json
-func (t BjyH) setData(url string) {
+func (t *BjyH) setData(url string) {
 	method := "GET"
 
 	client := &http.Client{}
@@ -172,7 +223,7 @@ func (t BjyH) setData(url string) {
 }
 
 // 解析链接url
-func (t BjyH) ParseP(url string) {
+func (t *BjyH) ParseP(url string) {
 	var urlReg = `(https:\/\/.*).com/`
 	var roomId = `(\d+)&`
 
@@ -181,10 +232,10 @@ func (t BjyH) ParseP(url string) {
 
 	reg, _ = regexp.Compile(roomId)
 	r := reg.FindString(url)
-	t.Classid = strings.ReplaceAll("&", "", r)
+	t.Classid = strings.ReplaceAll(r, "&", "")
 }
 
-func (t BjyH) logger(e error, p ...string) {
+func (t *BjyH) logger(e error, p ...string) {
 	if e != nil {
 		return
 	}
