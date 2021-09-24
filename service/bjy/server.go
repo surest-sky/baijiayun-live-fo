@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/tidwall/gjson"
 	"golang.org/x/net/websocket"
+	"task_client/utils/logger"
 )
 
 type Client interface {
@@ -12,6 +13,7 @@ type Client interface {
 	ReceiveHandle(b []byte)
 	RegisterRHandle(f func(gjson.Result))
 	SetClient(host string, o_host string)
+	Stop()
 }
 
 type HandleClient struct {
@@ -48,13 +50,16 @@ func (c *HandleClient) Send(tframe string) error {
 
 // 接受帧数据
 func (c *HandleClient) Receive() {
-	var msg = make([]byte, 5000)
+	var msg = make([]byte, 7000)
 	var n int
-	if n, err = c.C.Read(msg); err != nil {
-		fmt.Println("Received Error: ", err.Error())
-	}
+	for {
+		if n, err = c.C.Read(msg); err != nil {
+			logger.Info("client closed", nil)
+			c.Stop()
+		}
 
-	c.ReceiveHandle(msg[:n])
+		c.ReceiveHandle(msg[:n])
+	}
 }
 
 // 接受消息处理器
@@ -73,4 +78,11 @@ func (c *HandleClient) ReceiveHandle(b []byte) {
 // 注册接受消息处理器
 func (c *HandleClient) RegisterRHandle(f func(gjson.Result)) {
 	c.Handler = append(c.Handler, f)
+}
+
+// 结束
+func (c *HandleClient) Stop() {
+	if c.C.IsClientConn() {
+		_ = c.C.Close()
+	}
 }
