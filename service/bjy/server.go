@@ -41,6 +41,7 @@ func (c *HandleClient) SetClient(host string, o_host string) {
 
 // 设置服务器
 func (c *HandleClient) Send(tframe string) error {
+	logger.Info("Send: ", tframe)
 	if _, err := c.C.Write([]byte(tframe)); err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func (c *HandleClient) Receive() {
 	var n int
 	for {
 		if n, err = c.C.Read(msg); err != nil {
-			logger.Info("client closed", nil)
+			logger.Info("client closed", err.Error())
 			c.Stop()
 		}
 

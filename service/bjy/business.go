@@ -7,6 +7,7 @@ import (
 	"github.com/tidwall/gjson"
 	"io/ioutil"
 	"net/http"
+	netUrl "net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -18,6 +19,7 @@ import (
 type BjyH struct {
 	Token       string
 	Classid     string
+	XClassid    string
 	RoomUrl     string
 	ReqClient   Client
 	AuthClient  Client
@@ -52,6 +54,7 @@ type LoginParams struct {
 	Ts        string                 `json:"ts"`
 	Number    string                 `json:"number"`
 	User      map[string]interface{} `json:"user"`
+	WsHost    string                 `json:"ws_host"`
 }
 
 type Room struct {
@@ -59,10 +62,10 @@ type Room struct {
 	ClassId string `json:"class_id"`
 }
 
-func (t *BjyH) Serve(url string) {
+func (t *BjyH) Serve(url string, x_class_id string) {
 	// 解析链接
 	// 从源代码中解析data数据
-	t.ParseP(url)
+	t.ParseP(url, x_class_id)
 
 	// 设置连接 && 注册函数
 	t.SetReqClient()
@@ -90,8 +93,8 @@ func (t *BjyH) EventToken(result gjson.Result) {
 		t.LoginParams.User = u
 		t.LoginParams.Number = result.Get("user.number").String()
 		t.LoginParams.UserID = result.Get("id").String()
+		t.LoginParams.WsHost = fmt.Sprintf("%s:%s", result.Get("room_server.url").String(), result.Get("room_server.port").String())
 
-		fmt.Println("AuthParam Successed ! \nToken: ", t.AuthParam)
 		t.SetLoginClient()
 		t.GetUserActive()
 	}
@@ -134,7 +137,7 @@ func (t *BjyH) EventLoginUserList(result gjson.Result) {
 	if s == "user_count_change" {
 		t.Room = Room{
 			Count:   result.Get("accumulative_user_count").Int(),
-			ClassId: t.Classid,
+			ClassId: t.XClassid,
 		}
 		t.Complete()
 	}
@@ -191,7 +194,7 @@ func (t *BjyH) SetReqClient() {
 // example: "https://e83301793.at.baijiayun.com"
 func (t *BjyH) SetLoginClient() {
 	var (
-		ws_host     = "wss://pro-signal.baijiayun.com/agent:295"
+		ws_host     = t.LoginParams.WsHost
 		origin_host = t.RoomUrl
 	)
 
@@ -386,23 +389,25 @@ func (t *BjyH) setData(url string) {
 		UserID:    "",
 		Ts:        cast.ToString(time.Now().Unix()) + "000",
 	}
+	fmt.Println(rs.Get("class.id").String())
+	fmt.Println(rs)
+
 	t.Room = Room{
 		Count:   0,
-		ClassId: t.Classid,
+		ClassId: t.XClassid,
 	}
 }
 
 // 解析链接url
-func (t *BjyH) ParseP(url string) {
-	var urlReg = `(https:\/\/.*).com/`
-	var roomId = `(\d+)&`
+func (t *BjyH) ParseP(url string, x_class_id string) {
+	up, err := netUrl.Parse(url)
+	t.logger(err)
 
-	reg, _ := regexp.Compile(urlReg)
-	t.RoomUrl = reg.FindString(url)
+	m, _ := netUrl.ParseQuery(up.RawQuery)
 
-	reg, _ = regexp.Compile(roomId)
-	r := reg.FindString(url)
-	t.Classid = strings.ReplaceAll(r, "&", "")
+	t.RoomUrl = fmt.Sprintf("https://%s", up.Host)
+	t.Classid = m.Get("room_id")
+	t.XClassid = x_class_id
 
 	t.setData(url)
 }
@@ -493,5 +498,6 @@ func (t *BjyH) logger(e error, p ...string) {
 		prefix = p[0]
 	}
 
+	fmt.Println("Error", err.Error())
 	logger.Error(prefix, err.Error())
 }
