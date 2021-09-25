@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"task_client/app"
+	"task_client/service/router"
+	"task_client/service/task"
 )
 
 func main() {
-	fmt.Println("-- init -- task Server")
-
-	app.ProcessBjy()
+	go task.BjServe()
+	router.RouterServe()
 }

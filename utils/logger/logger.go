@@ -58,7 +58,6 @@ func PanicError(err error, source string, isExit bool) {
 		dispatchNotice(err.Error(), source)
 		if isExit == true {
 			fmt.Println("错误消息:"+err.Error(), "\n"+"来源: "+source+"\n-----------")
-			os.Exit(-1)
 		}
 	}
 }
@@ -75,9 +74,12 @@ func handle(level string, title string, content interface{}) {
 		filename string
 	)
 
+	message := fmt.Sprintf("[%s] %s : %s \n", level, title, content)
+
 	filename = logFileName
 	if strings.ToLower(level) == "error" {
 		filename = logErrorName
+		fmt.Println(message)
 	}
 
 	if osFile, err = os.OpenFile(filename, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666); err != nil {
