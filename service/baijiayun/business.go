@@ -1,6 +1,7 @@
-package bjy
+package baijiayun
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cast"
@@ -8,7 +9,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	netUrl "net/url"
-	"os"
 	"regexp"
 	"strings"
 	"task_client/utils/logger"
@@ -62,25 +62,49 @@ type Room struct {
 	ClassId string `json:"class_id"`
 }
 
-func (t *BjyH) Serve(url string, x_class_id string) {
+func Newbusiness() *BjyH {
+	return &BjyH{}
+}
+
+func (t *BjyH) Handle(id int64) {
+	queue := New()
+	class := make(map[string]string)
+	s := queue.Get(id)
+	_ = json.Unmarshal([]byte(s), &class)
+
+	timeDura := time.Second * 4
+	ctx, cancel := context.WithTimeout(context.Background(), timeDura)
+
+	go t.Serve(ctx, class["url"], class["class_id"])
+	time.Sleep(timeDura)
+
+	fmt.Println("end")
+	cancel()
+}
+
+func (t *BjyH) Serve(ctx context.Context, url string, x_class_id string) {
 	// 解析链接
 	// 从源代码中解析data数据
 	t.ParseP(url, x_class_id)
 
 	// 设置连接 && 注册函数
-	t.SetReqClient()
+	t.SetReqClient(ctx)
 
 	// 发送一条ws信息 获取鉴权数据
 	t.MessageToken()
 
-	// 设置鉴权链接
-	//s.SetSdkClient()
-
-	select {}
+	for {
+		select {
+		case <-ctx.Done():
+			t.Complete()
+			return
+		default:
+		}
+	}
 }
 
 // 处理 Token
-func (t *BjyH) EventToken(result gjson.Result) {
+func (t *BjyH) EventToken(ctx context.Context, result gjson.Result) {
 	token := result.Get("webrtc_info.token").String()
 	if len(token) > 0 {
 		t.AuthParam = AuthParam{
@@ -95,7 +119,7 @@ func (t *BjyH) EventToken(result gjson.Result) {
 		t.LoginParams.UserID = result.Get("id").String()
 		t.LoginParams.WsHost = fmt.Sprintf("%s:%s", result.Get("room_server.url").String(), result.Get("room_server.port").String())
 
-		t.SetLoginClient()
+		t.SetLoginClient(ctx)
 		t.GetUserActive()
 	}
 }
@@ -132,30 +156,29 @@ func (t *BjyH) EventUserList(result gjson.Result) {
 }
 
 // 处理用户列表
-func (t *BjyH) EventLoginUserList(result gjson.Result) {
+func (t *BjyH) EventLoginUserList(ctx context.Context, result gjson.Result) {
 	s := result.Get("message_type").String()
 	if s == "user_count_change" {
 		t.Room = Room{
 			Count:   result.Get("accumulative_user_count").Int(),
 			ClassId: t.XClassid,
 		}
-		t.Complete()
 	}
 }
 
 // 消息通知
-func (t *BjyH) EventNotice(result gjson.Result) {
+func (t *BjyH) EventNotice(ctx context.Context, result gjson.Result) {
 	msg := map[string]interface{}{
 		"class_id": t.Classid,
 		"room_url": t.RoomUrl,
-		"message":  result.Value().(map[string]interface{}),
+		"message":  result.Value(),
 	}
 	logger.Info("WS", msg)
 }
 
 // 获取待处理的函数
-func (t *BjyH) getEventFs() []func(gjson.Result) {
-	return []func(gjson.Result){
+func (t *BjyH) getEventFs() []func(context.Context, gjson.Result) {
+	return []func(context.Context, gjson.Result){
 		t.EventLoginUserList,
 		t.EventToken,
 		t.EventNotice,
@@ -164,7 +187,7 @@ func (t *BjyH) getEventFs() []func(gjson.Result) {
 
 // 设置req 客户端
 // example: "https://e83301793.at.baijiayun.com"
-func (t *BjyH) SetReqClient() {
+func (t *BjyH) SetReqClient(ctx context.Context) {
 	var (
 		ws_host     = "wss://pro-signal.baijiayun.com/"
 		origin_host = t.RoomUrl
@@ -173,7 +196,8 @@ func (t *BjyH) SetReqClient() {
 	server := GetServer()
 	server.SetClient(ws_host, origin_host)
 	if err != nil {
-		t.logger(err, "Req Connect : ")
+		t.logger(err, "Req Connect: ")
+		t.stop()
 		return
 	}
 
@@ -184,7 +208,7 @@ func (t *BjyH) SetReqClient() {
 	}
 
 	go func() {
-		t.ReqClient.Receive()
+		t.ReqClient.Receive(ctx)
 	}()
 
 	fmt.Println("-- init -- req client -- successed !")
@@ -192,7 +216,7 @@ func (t *BjyH) SetReqClient() {
 
 // 设置req 客户端
 // example: "https://e83301793.at.baijiayun.com"
-func (t *BjyH) SetLoginClient() {
+func (t *BjyH) SetLoginClient(ctx context.Context) {
 	var (
 		ws_host     = t.LoginParams.WsHost
 		origin_host = t.RoomUrl
@@ -212,21 +236,19 @@ func (t *BjyH) SetLoginClient() {
 	}
 
 	go func() {
-		t.LoginClient.Receive()
+		t.LoginClient.Receive(ctx)
 	}()
 
-	fmt.Println("-- init -- req client -- successed !")
+	fmt.Println("-- init -- login client -- successed !")
 }
 
 // 设置 sdk 客户端
 // example: "https://e83301793.at.baijiayun.com"
-func (t *BjyH) SetSdkClient() {
+func (t *BjyH) SetSdkClient(ctx context.Context) {
 	var (
 		ws_host     = fmt.Sprintf("wss://qcloud.rtc.qq.com/?sdkAppid=%s&identifier=%s&userSig=%s", t.AuthParam.SdkAppid, t.AuthParam.Identifier, t.AuthParam.UserSig)
 		origin_host = t.RoomUrl
 	)
-
-	fmt.Println("ws_host", ws_host)
 
 	server := GetServer()
 	server.SetClient(ws_host, origin_host)
@@ -242,7 +264,7 @@ func (t *BjyH) SetSdkClient() {
 	}
 
 	go func() {
-		t.AuthClient.Receive()
+		t.AuthClient.Receive(ctx)
 	}()
 
 	fmt.Println("-- init -- sdk client -- successed !")
@@ -389,8 +411,6 @@ func (t *BjyH) setData(url string) {
 		UserID:    "",
 		Ts:        cast.ToString(time.Now().Unix()) + "000",
 	}
-	fmt.Println(rs.Get("class.id").String())
-	fmt.Println(rs)
 
 	t.Room = Room{
 		Count:   0,
@@ -470,21 +490,26 @@ func (t *BjyH) Complete() {
 		Data:   t.Room,
 	}
 	request.NewRequest(r)
-	t.stop()
+	logger.Info("complete", "========")
+	fmt.Println("complete ======")
 }
 
 // 结束
 func (t *BjyH) stop() {
 	// 关闭已开启的连接
-	t.LoginClient.Stop()
+	if t.LoginClient != nil {
+		t.LoginClient.Stop()
+	}
+
 	//t.AuthClient.Stop()
-	t.ReqClient.Stop()
+	if t.ReqClient != nil {
+		t.ReqClient.Stop()
+	}
 
 	// Stop
 	logger.Info("client all closed", nil)
 
 	// 关闭当前任务 & 退出当前进程
-	os.Exit(0)
 }
 
 func (t *BjyH) logger(e error, p ...string) {
