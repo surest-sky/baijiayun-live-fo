@@ -3,10 +3,11 @@ package baijiayun
 import (
 	"context"
 	"encoding/json"
-	"github.com/go-redis/redis/v8"
-	"github.com/spf13/cast"
 	"task_client/utils/logger"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/spf13/cast"
 )
 
 const (

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/cast"
-	"github.com/tidwall/gjson"
 	"io/ioutil"
 	"net/http"
 	netUrl "net/url"
@@ -14,6 +12,9 @@ import (
 	"task_client/utils/logger"
 	"task_client/utils/request"
 	"time"
+
+	"github.com/spf13/cast"
+	"github.com/tidwall/gjson"
 )
 
 type BjyH struct {
@@ -66,28 +67,39 @@ func Newbusiness() *BjyH {
 	return &BjyH{}
 }
 
+var ctxChannel chan int
+
 func (t *BjyH) Handle(id int64) {
+	fmt.Println("==== handle === id ==", id)
 	queue := New()
 	class := make(map[string]string)
+	channel := make(chan int)
 	s := queue.Get(id)
 	_ = json.Unmarshal([]byte(s), &class)
 
-	timeDura := time.Second * 4
+	timeDura := time.Second * 2
 	ctx, cancel := context.WithTimeout(context.Background(), timeDura)
 
-	go t.Serve(ctx, class["url"], class["class_id"])
-	time.Sleep(timeDura)
+	go t.Serve(ctx, channel, class["url"], class["class_id"])
+	go func() {
+		time.AfterFunc(timeDura, func() {
+			cancel()
+		})
+	}()
+
+	for v := range channel {
+		fmt.Println("channel:", v)
+	}
 
 	fmt.Println("end")
-	cancel()
 }
 
-func (t *BjyH) Serve(ctx context.Context, url string, x_class_id string) {
+func (t *BjyH) Serve(ctx context.Context, channel chan int, url string, x_class_id string) {
 	// 解析链接
 	// 从源代码中解析data数据
 	t.ParseP(url, x_class_id)
 
-	// 设置连接 && 注册函数
+	//设置连接 && 注册函数
 	t.SetReqClient(ctx)
 
 	// 发送一条ws信息 获取鉴权数据
@@ -97,6 +109,7 @@ func (t *BjyH) Serve(ctx context.Context, url string, x_class_id string) {
 		select {
 		case <-ctx.Done():
 			t.Complete()
+			close(ctxChannel)
 			return
 		default:
 		}
